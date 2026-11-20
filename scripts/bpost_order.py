@@ -868,6 +868,7 @@ def run_create(args) -> int:
             shipment.update(fixed)
 
     # price every parcel from the catalog so we know the product line up front
+    noted_uninsured = set()
     for shipment in shipments:
         shipment["destination_code"] = DESTINATIONS[shipment["delivery"]]
         shipment["band"] = weight_range_code(shipment["weight_kg"], shipment["country_code"])
@@ -879,19 +880,38 @@ def run_create(args) -> int:
             if shipment["destination_code"] in ("PICKUP_POINT", "LOCKER")
             else None
         )
-        if args.insurance:
+        # WARRANTY: default on for Belgian parcels, unavailable (and skipped) abroad
+        if args.insurance is None and shipment["country_code"] != "BE":
+            if shipment["country_code"] not in noted_uninsured:
+                noted_uninsured.add(shipment["country_code"])
+                print(
+                    f"  note: bpost offers no insurance for {shipment['country_code']}, "
+                    "shipping uninsured",
+                    file=sys.stderr,
+                )
+        wants_insurance = args.insurance is not False and (
+            shipment["country_code"] == "BE" or args.insurance is True
+        )
+        if wants_insurance:
             options = client.catalog(shipment["country_code"], shipment["destination_code"]).get("options") or []
             warranty = next((o for o in options if o.get("code") == "WARRANTY"), None)
-            if not warranty:
+            if warranty:
+                shipment["insurance"] = True
+                shipment["insurance_price"] = float(warranty.get("price") or 0)
+                shipment["quoted_price"] = round(
+                    shipment["quoted_price"] + shipment["insurance_price"], 2
+                )
+            elif args.insurance is True:
                 raise BpostError(
                     f"bpost does not offer insurance (WARRANTY) for {shipment['country_code']} "
-                    f"{shipment['destination_code']} — drop --insurance or split the shipment"
+                    f"{shipment['destination_code']} — use --no-insurance"
                 )
-            shipment["insurance"] = True
-            shipment["insurance_price"] = float(warranty.get("price") or 0)
-            shipment["quoted_price"] = round(
-                shipment["quoted_price"] + shipment["insurance_price"], 2
-            )
+            else:
+                print(
+                    f"  note: no bpost insurance available for {shipment['country_code']} "
+                    f"{shipment['destination_code']}, shipping uninsured",
+                    file=sys.stderr,
+                )
 
     print(f"\nbpost plan for {source}")
     _print_plan(shipments)
@@ -1038,6 +1058,9 @@ def _print_order(order: dict, sender: dict | None = None) -> None:
             print(f"     ref:    {det['senderReference']}")
         if intl.get("contentDescription"):
             print(f"     customs: {intl['contentDescription']} — value {intl.get('parcelValue')}")
+        for opt in s.get("selectedOptions") or []:
+            if opt.get("code"):
+                print(f"     option:  {opt.get('code')} ({opt.get('name')}) +EUR {opt.get('price')}")
     snd = (parcels[0].get("parcel") or {}).get("sender") if parcels else None
     if snd:
         a = snd.get("address") or {}
@@ -1257,7 +1280,7 @@ def review_sheet(order: dict, order_id: str, payment_url: str | None) -> Path:
       <td>{idx}</td>
       <td><strong>{_esc(name)}</strong><br><span class=mut>{_esc(rec.get('emailAddress'))}</span></td>
       <td>{where}</td>
-      <td>{(s.get('weightRange') or {}).get('name','')}<br><span class=mut>{_esc(det.get('productLineCode'))} · {_esc(s.get('productCode'))}</span></td>
+      <td>{(s.get('weightRange') or {}).get('name','')}<br><span class=mut>{_esc(det.get('productLineCode'))} · {_esc(s.get('productCode'))}</span>{''.join(f"<br><span class=mut>+ {_esc(o.get('name'))}</span>" for o in (s.get('selectedOptions') or []) if o.get('code'))}</td>
       <td>{_esc(det.get('senderReference') or '')}<br><span class=mut>{_esc(intl.get('contentDescription') or '')}</span></td>
       <td class=num>€&nbsp;{price}</td>
     </tr>"""
@@ -1446,7 +1469,10 @@ def main(argv=None) -> int:
     opt.add_argument("--pickup", help="substring of the pickup point id/name/street")
     opt.add_argument("--product-line", choices=["STANDARD", "ECONOMY", "LOCKER_TO_LOCKER"], help="default: STANDARD domestic, ECONOMY international")
     opt.add_argument("--value-eur", type=float, help="declared value for customs (non-EU)")
-    opt.add_argument("--insurance", action="store_true", help="add bpost WARRANTY cover (BE only, +EUR 1.55/parcel)")
+    opt.add_argument("--insurance", dest="insurance", action="store_true", default=None,
+                     help="force WARRANTY cover (default: on for Belgian parcels, +EUR 1.55/parcel)")
+    opt.add_argument("--no-insurance", dest="insurance", action="store_false",
+                     help="ship without WARRANTY cover")
     opt.add_argument("--lang", default="nl", choices=["nl", "fr", "en", "de"])
     opt.add_argument("--normalize", dest="normalize", action="store_true", default=True, help="canonicalise BE addresses via bpost proofing (default: on)")
     opt.add_argument("--no-normalize", dest="normalize", action="store_false")

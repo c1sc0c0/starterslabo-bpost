@@ -129,7 +129,8 @@ or bpost answers a bare HTTP 400):
 - **Options:** `selectedOptions` is an **object keyed by parameter**, not a list:
   `{"warranty": {"code": "WARRANTY"}}` (adds €1.55, product becomes `BPACK_AT_BPOST_SECUR_PP`),
   `{"cashOnDelivery": {"code": "CASH_ON_DELIVERY"}}`. Available per country/destination via
-  `catalog/search → options`; WARRANTY is domestic-only (empty for DE/FR).
+  `catalog/search → options`; WARRANTY is domestic-only (empty for DE/FR), which is why the CLI enables
+  it by default for BE only. It also switches the product code to `BPACK_AT_BPOST_SECUR_PP`.
 - **Payment gateway:** the site posts the chosen method uppercased. `MOLLIE` was accepted and returned a
   MultiSafepay `connect` URL; the hosted page lets the user pick the actual method.
 

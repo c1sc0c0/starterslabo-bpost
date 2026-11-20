@@ -101,8 +101,9 @@ Never print the password or the cookie. No `-w` echo, no `cat .bpost-session`, n
 `--pickup "EIERMARKT"` or a point id narrows the choice; otherwise the nearest point is used and printed
 in the plan so the human can veto it before anything is created.
 
-`--insurance` adds bpost WARRANTY (€1.55/parcel, cover up to €500). Domestic only: bpost does not offer
-it for international destinations, and the CLI refuses rather than shipping uninsured.
+WARRANTY (insurance, €1.55/parcel, cover up to €500) is **on by default for Belgian parcels** —
+`--no-insurance` opts out. bpost does not offer it abroad: international parcels are built uninsured
+with a note, and an explicit `--insurance` for a non-BE destination is an error.
 
 Weight bands: 0-2 / 2-5 / 5-10 / 10-20 / 20-30 kg (`DOM_*` domestic, `INT_*` international). Over 30 kg
 is rejected — split the parcel or use the `order-ship-mode` skill. The product line is the cheapest one
