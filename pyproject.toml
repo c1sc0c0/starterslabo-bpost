@@ -1,0 +1,10 @@
+[project]
+name = "bpost-label"
+version = "0.1.0"
+description = "Create bpost parcel orders from a Shopify order or a pasted address, stop for review, then hand over a checkout link"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.uv]
+package = false

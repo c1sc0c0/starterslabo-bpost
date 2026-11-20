@@ -1,0 +1,20 @@
+# Sender block printed on every bpost label (the return address).
+# Copy this file to sender.yaml and fill it in. It is your own address, so keep
+# it out of git if you would rather not publish it (it is gitignored anyway).
+#
+# vat_number is optional. If set, it must be a Belgian number with a valid
+# checksum: bpost rejects the sender otherwise. Leave it empty to print no VAT.
+
+first_name: Your
+last_name: Name
+company: Your Shop
+vat_number: ""
+email: you@example.com
+phone: ""
+
+street: Voorbeeldstraat
+number: "1"
+box: ""
+zip: "2000"
+city: Antwerpen
+country: BE

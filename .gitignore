@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# local config and secrets — never commit
+sender.yaml
+config.yaml
+.bpost-session
+.env
+.env.*
+
+# generated output
+records/
+review-*.html
