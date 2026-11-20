@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create bpost parcel orders (guest or signed in) and hand back a payment link.
+Create bpost (rebelchalk.com) parcel orders as a guest and hand back a payment link.
 
 Never pays anything: the money step happens on the MultiSafepay page the link opens.
 
@@ -20,7 +20,7 @@ Turn it into a payable order and print the checkout link:
 
 Explicit recipient, home delivery:
 
-    python bpost_order.py --name "Jane Doe" --street Voorbeeldstraat --number 51 \
+    python bpost_order.py --name "Jane Doe" --street Kammenstraat --number 51 \
         --zip 2000 --city Antwerpen --country BE --weight-kg 3 --delivery address
 
 Batch from JSON:
@@ -233,7 +233,7 @@ class BpostGuestClient:
                 "senderReference": parcel.get("reference"),
                 "productTypeCode": None,
                 "productLineCode": parcel.get("product_line") or "STANDARD",
-                "selectedOptions": None,
+                "selectedOptions": parcel.get("selected_options"),
             },
         }
         if parcel["country_code"] != "BE":
@@ -337,12 +337,12 @@ def parse_address(text: str, client: BpostGuestClient | None = None) -> dict:
 
     Handles the shapes people actually paste:
 
-        Jane Doe
-        Beispielweg 5
+        Felix Riexinger
+        Glockenstr 56
         67655 Kaiserslautern
         Germany
 
-        Jan Peeters, Voorbeeldstraat 51 bus 3, 2000 Antwerpen, België
+        Jan Peeters, Kammenstraat 51 bus 3, 2000 Antwerpen, België
     """
     parts = [
         p.strip()
@@ -416,7 +416,7 @@ def weight_range_code(weight_kg: float, country: str) -> str:
 
 
 def split_street(address: str) -> tuple[str, str]:
-    """'Beispielweg 5' -> ('Beispielweg', '56'); falls back to ('Beispielweg 5', '')."""
+    """'Glockenstr 56' -> ('Glockenstr', '56'); falls back to ('Glockenstr 56', '')."""
     address = (address or "").strip()
     m = re.match(r"^(.*?)[\s,]+(\d+[A-Za-z]?(?:\s*[-/]\s*\d+[A-Za-z]?)?)$", address)
     if m:
@@ -551,7 +551,7 @@ def _cookie_value(cookie: str, name: str) -> str:
 def load_session(explicit: str | None = None) -> str | None:
     """Logged-in bpost session cookie, if one is configured.
 
-    Stored in `.bpost-session` next to the skill (gitignored) or passed with
+    Stored in `.cursor/skills/bpost-label/.bpost-session` (gitignored) or passed with
     `--cookie` / `BPOST_SESSION`. With a session the basket lives on the account, so
     https://parcel.bpost.be/nl/basket becomes a real, shareable link.
     """
@@ -615,7 +615,7 @@ def sender_from_config() -> dict:
     if not SENDER_FILE.exists():
         raise SystemExit(
             f"Missing sender config: {SENDER_FILE}\n"
-            "Copy sender.example.yaml to sender.yaml and fill in your return address."
+            "Copy sender.example.yaml to sender.yaml and fill in the Chalk Rebels return address."
         )
     data = _load_flat_yaml(SENDER_FILE.read_text(encoding="utf-8"))
     required = ["first_name", "last_name", "street", "number", "zip", "city", "email"]
@@ -879,6 +879,19 @@ def run_create(args) -> int:
             if shipment["destination_code"] in ("PICKUP_POINT", "LOCKER")
             else None
         )
+        if args.insurance:
+            options = client.catalog(shipment["country_code"], shipment["destination_code"]).get("options") or []
+            warranty = next((o for o in options if o.get("code") == "WARRANTY"), None)
+            if not warranty:
+                raise BpostError(
+                    f"bpost does not offer insurance (WARRANTY) for {shipment['country_code']} "
+                    f"{shipment['destination_code']} — drop --insurance or split the shipment"
+                )
+            shipment["insurance"] = True
+            shipment["insurance_price"] = float(warranty.get("price") or 0)
+            shipment["quoted_price"] = round(
+                shipment["quoted_price"] + shipment["insurance_price"], 2
+            )
 
     print(f"\nbpost plan for {source}")
     _print_plan(shipments)
@@ -902,6 +915,9 @@ def run_create(args) -> int:
             "product_line": shipment["product_line"],
             "contents": shipment.get("contents"),
             "value_eur": shipment.get("value_eur") or args.value_eur,
+            "selected_options": (
+                {"warranty": {"code": "WARRANTY"}} if shipment.get("insurance") else None
+            ),
         }
         pickup = shipment["pickup"]
         recipient = build_recipient(shipment, pickup)
@@ -945,7 +961,7 @@ def run_create(args) -> int:
         print("    - own browser, save once as a bookmark:")
         print(f"      {bookmarklet(order_id)}")
         print("  Pay: click Betaal in the bpost basket, or mint a portable link with:")
-        print(f"    python3 scripts/bpost_order.py pay {order_id}")
+        print(f"    python3 .cursor/skills/bpost-label/scripts/bpost_order.py pay {order_id}")
     return 0
 
 
@@ -1142,6 +1158,8 @@ def _print_plan(shipments: list[dict]) -> None:
         else:
             box = f" bus {sh['box']}" if sh.get("box") else ""
             print(f"     to:     {sh['street']} {sh['number']}{box}, {sh['zip']} {sh['city']}, {sh['country_code']}")
+        if sh.get("insurance"):
+            print(f"     insurance: WARRANTY +EUR {sh.get('insurance_price', 0):.2f} (cover up to EUR 500)")
         if sh.get("contents"):
             print(f"     contents: {sh['contents']}")
 
@@ -1407,7 +1425,7 @@ def main(argv=None) -> int:
 
     p = argparse.ArgumentParser(description="Create a bpost parcel order (no payment link until you ask).")
     src = p.add_argument_group("shipment source")
-    src.add_argument("--shopify", metavar="ORDER", help="Shopify order number on your shop, e.g. 1002 or #1002")
+    src.add_argument("--shopify", metavar="ORDER", help="Shopify order number on rebelchalk, e.g. 1002 or #1002")
     src.add_argument("--to", metavar="ADDRESS", help="pasted address: 'Name, Street 12, 2000 City, Country' or the same in newlines")
     src.add_argument("--json", metavar="FILE", help="JSON file with a list of shipments")
     src.add_argument("--name", help="recipient full name")
@@ -1428,6 +1446,7 @@ def main(argv=None) -> int:
     opt.add_argument("--pickup", help="substring of the pickup point id/name/street")
     opt.add_argument("--product-line", choices=["STANDARD", "ECONOMY", "LOCKER_TO_LOCKER"], help="default: STANDARD domestic, ECONOMY international")
     opt.add_argument("--value-eur", type=float, help="declared value for customs (non-EU)")
+    opt.add_argument("--insurance", action="store_true", help="add bpost WARRANTY cover (BE only, +EUR 1.55/parcel)")
     opt.add_argument("--lang", default="nl", choices=["nl", "fr", "en", "de"])
     opt.add_argument("--normalize", dest="normalize", action="store_true", default=True, help="canonicalise BE addresses via bpost proofing (default: on)")
     opt.add_argument("--no-normalize", dest="normalize", action="store_false")

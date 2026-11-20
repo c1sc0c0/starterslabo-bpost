@@ -101,6 +101,9 @@ the name. Belgian addresses are then canonicalised through bpost's address proof
 Weight is required with `--to` (`--weight 9.52`, kg). Delivery type defaults to pickup point for
 Belgian addresses; use `--delivery address` or `--delivery locker`.
 
+Add `--insurance` for bpost's WARRANTY cover (€1.55 per parcel, up to €500 of goods). bpost only offers
+it domestically — international shipments are refused rather than silently sent uninsured.
+
 ## Commands
 
 | Command | What it does |
@@ -108,6 +111,7 @@ Belgian addresses; use `--delivery address` or `--delivery locker`.
 | `--shopify 1002` | build from a Shopify order (`--split line` = parcel per carton, `--split single` = one parcel) |
 | `--to "<address>"` | build from a pasted address |
 | `--json file.json` | build from a batch file |
+| `--insurance` | add bpost WARRANTY cover (+€1.55/parcel, BE only, up to €500) |
 | `--quote` | price only, nothing created |
 | `--dry-run` | real draft, real price, then deleted (guest order, never touches your cart) |
 | `pay <id>` | mint the MultiSafepay checkout link |

@@ -126,6 +126,10 @@ or bpost answers a bare HTTP 400):
 - **Weight ranges:** `DOM_0_2`, `DOM_2_5`, `DOM_5_10`, `DOM_10_20`, `DOM_20_30`; international `INT_*`
 - **Product lines:** `STANDARD`, `ECONOMY`, `LOCKER_TO_LOCKER` (availability differs per country/weight;
   `catalog/search` returns `state` = SELECTED / ENABLED / DISABLED)
+- **Options:** `selectedOptions` is an **object keyed by parameter**, not a list:
+  `{"warranty": {"code": "WARRANTY"}}` (adds €1.55, product becomes `BPACK_AT_BPOST_SECUR_PP`),
+  `{"cashOnDelivery": {"code": "CASH_ON_DELIVERY"}}`. Available per country/destination via
+  `catalog/search → options`; WARRANTY is domestic-only (empty for DE/FR).
 - **Payment gateway:** the site posts the chosen method uppercased. `MOLLIE` was accepted and returned a
   MultiSafepay `connect` URL; the hosted page lets the user pick the actual method.
 
